@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Career Profile Generator</title>
+<style>body{margin:0;padding:0;}</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script type="text/babel">
+const { useState, useRef, useEffect, useCallback } = React;
+
+
+
+const C = {
+  forest:"#2B4A3F",forestMid:"#35614F",forestLight:"#407A62",forestPale:"#E8F0EC",
+  brown:"#4A3728",brownMid:"#5E4636",brownLight:"#7A6352",
+  mustard:"#C49B2A",mustardLight:"#D4AD3C",mustardPale:"#FBF5E4",
+  orange:"#BF5B2E",orangeLight:"#D4763E",
+  cream:"#F7F3ED",creamDark:"#E6DFD3",
+  white:"#FFFFFF",offWhite:"#FAFAF7",
+  text:"#1F1B16",textMid:"#4A4239",textMuted:"#8A7E72",
+  divider:"#E0D8CC",
+};
+
+const PERSONALITIES = [
+  "INTJ - Architect","INTP - Logician","ENTJ - Commander","ENTP - Debater",
+  "INFJ - Advocate","INFP - Mediator","ENFJ - Protagonist","ENFP - Campaigner",
+  "ISTJ - Logistician","ISFJ - Defender","ESTJ - Executive","ESFJ - Consul",
+  "ISTP - Virtuoso","ISFP - Adventurer","ESTP - Entrepreneur","ESFP - Entertainer",
+];
+const STRENGTHS = [
+  "Analyst","Believer","Catalyst","Challenger","Coach","Deliverer","Empathizer",
+  "Focus Builder","Optimist","Philomath","Problem Solver","Self-Believer",
+  "Storyteller","Strategist","Thinker","Time Keeper","Winner","Wise Advisor","Vim","Visionary",
+];
+const TEMPS = ["Choleric","Sanguine","Melancholic","Phlegmatic"];
+const DISCS = ["D - Dominance","I - Influence","S - Steadiness","C - Conscientiousness"];
+
+const DIMENSIONS = [
+  {key:"strategic",label:"Strategic Vision",low:"Tactical",high:"Visionary"},
+  {key:"relational",label:"Relational Drive",low:"Independent",high:"Collaborative"},
+  {key:"execution",label:"Execution Style",low:"Flexible",high:"Structured"},
+  {key:"influence",label:"Influence Mode",low:"Supportive",high:"Directive"},
+  {key:"innovation",label:"Innovation Approach",low:"Methodical",high:"Disruptive"},
+];
+
+function computeDimensions(data){
+  const{personality,high5,temperaments,disc}=data;
+  const p=personality.split(" - ")[0];
+  const N=p[1]==="N",F=p[2]==="F",J=p[3]==="J",I=p[0]==="I";
+  const chol=temperaments.includes("Choleric"),sang=temperaments.includes("Sanguine");
+  const mel=temperaments.includes("Melancholic"),phleg=temperaments.includes("Phlegmatic");
+  const dD=disc.some(d=>d[0]==="D"),dI=disc.some(d=>d[0]==="I");
+  const dS=disc.some(d=>d[0]==="S"),dC=disc.some(d=>d[0]==="C");
+  const has=arr=>high5.some(s=>arr.includes(s));
+  let s=50,r=50,e=50,inf=50,inn=50;
+  if(N)s+=18;else s-=12;if(has(["Strategist","Visionary"]))s+=14;if(has(["Thinker","Analyst"]))s+=8;if(chol)s+=6;if(dD)s+=5;
+  if(F)r+=16;if(I)r-=12;else r+=8;if(sang)r+=14;if(phleg)r+=8;if(dI)r+=10;if(dS)r+=6;if(has(["Coach","Empathizer","Storyteller","Wise Advisor"]))r+=12;
+  if(J)e+=16;else e-=12;if(mel)e+=14;if(dC)e+=12;if(has(["Deliverer","Time Keeper","Focus Builder"]))e+=14;if(has(["Catalyst","Vim"]))e-=6;
+  if(chol)inf+=18;if(dD)inf+=14;if(phleg)inf-=14;if(dS)inf-=10;if(!I)inf+=8;else inf-=6;if(has(["Challenger","Winner"]))inf+=12;if(has(["Coach","Empathizer"]))inf-=6;
+  if(N)inn+=14;if(!J)inn+=10;if(sang)inn+=8;if(chol)inn+=6;if(mel)inn-=8;if(has(["Catalyst","Visionary","Philomath","Problem Solver"]))inn+=14;if(has(["Deliverer","Time Keeper"]))inn-=6;
+  const cl=v=>Math.max(10,Math.min(95,v));
+  return{strategic:cl(s),relational:cl(r),execution:cl(e),influence:cl(inf),innovation:cl(inn)};
+}
+
+function generateNickname(data){
+  const{personality,high5,temperaments,disc}=data;
+  const p=personality.split(" - ")[0];
+  const N=p[1]==="N",F=p[2]==="F",I=p[0]==="I";
+  const chol=temperaments.includes("Choleric"),sang=temperaments.includes("Sanguine");
+  const mel=temperaments.includes("Melancholic"),phleg=temperaments.includes("Phlegmatic");
+  const dD=disc.some(d=>d[0]==="D"),dI=disc.some(d=>d[0]==="I");
+  if(N&&F&&(dI||sang))return"The Visionary Connector";
+  if(N&&F&&(chol||dD))return"The Purpose-Driven Catalyst";
+  if(N&&F&&(phleg||mel))return"The Quiet Architect of Change";
+  if(N&&F)return"The Empathic Visionary";
+  if(N&&!F&&(chol||dD))return"The Strategic Powerhouse";
+  if(N&&!F&&(sang||dI))return"The Charismatic Strategist";
+  if(N&&!F&&mel)return"The Precision Innovator";
+  if(N&&!F)return"The Systems Thinker";
+  if(!N&&F&&(chol||dD))return"The Heart-Led Builder";
+  if(!N&&F&&(sang||dI))return"The People Champion";
+  if(!N&&F&&phleg)return"The Steady Guardian";
+  if(!N&&F)return"The Trusted Anchor";
+  if(!N&&!F&&(chol||dD))return"The Results Architect";
+  if(!N&&!F&&(sang||dI))return"The Magnetic Operator";
+  if(!N&&!F&&mel)return"The Master Craftsperson";
+  return"The Disciplined Builder";
+}
+
+function generateProfile(data){
+  const{firstName,personality,high5,temperaments,disc}=data;
+  const p=personality.split(" - ")[0],pName=personality.split(" - ")[1];
+  const I=p[0]==="I",N=p[1]==="N",F=p[2]==="F",P=p[3]==="P";
+  const chol=temperaments.includes("Choleric"),sang=temperaments.includes("Sanguine");
+  const mel=temperaments.includes("Melancholic"),phleg=temperaments.includes("Phlegmatic");
+  const dD=disc.some(d=>d[0]==="D"),dI=disc.some(d=>d[0]==="I");
+  const dS=disc.some(d=>d[0]==="S"),dC=disc.some(d=>d[0]==="C");
+  const has=arr=>high5.some(s=>arr.includes(s));
+  const dims=computeDimensions(data);
+  const nickname=generateNickname(data);
+
+  let atBest=[];
+  if(N&&F)atBest.push(""+firstName+", your greatest professional asset is vision. As an "+p+" ("+pName+"), you naturally look beyond the immediate\u2014identifying meaning, purpose, and opportunity where others focus on tasks. Your strengths in "+high5.slice(0,2).join(" and ")+" reinforce this ability, enabling you to translate complex, abstract ideas into outcomes that connect with people and drive meaningful results.");
+  else if(N&&!F)atBest.push(""+firstName+", your core advantage is systems-level thinking. As an "+p+" ("+pName+"), you naturally identify patterns and design solutions that anticipate emerging challenges\u2014not just the ones directly in front of you. Your strengths in "+high5.slice(0,2).join(" and ")+" amplify this capacity, providing both the analytical depth and the strategic initiative to move from insight to execution efficiently.");
+  else if(!N&&F)atBest.push(""+firstName+", your defining strength is building environments where people perform at their best. As an "+p+" ("+pName+"), you combine dependability with genuine care for others\u2014a combination that builds trust quickly and sustains it over time. Your strengths in "+high5.slice(0,2).join(" and ")+" reinforce this capacity, creating the conditions where colleagues feel supported and consistently deliver their strongest work.");
+  else atBest.push(""+firstName+", your core strength is bringing clarity and structure to complex situations. As an "+p+" ("+pName+"), you excel at precision under pressure\u2014converting ambiguity into actionable plans while others are still assessing the situation. Your strengths in "+high5.slice(0,2).join(" and ")+" amplify this capacity, providing the disciplined focus that organizations depend on\u2014often more than they recognize.");
+
+  if(chol||dD)atBest.push("Your "+(chol?"Choleric":"")+(chol&&dD?" temperament and ":"")+(dD?"D-driven DISC":chol?" temperament":"")+" profile reflects a strong orientation toward initiative and action. You generate momentum rather than waiting for direction, and in environments that reward speed and decisiveness, this quality becomes a significant professional advantage.");
+  if(sang||dI)atBest.push("Your "+(sang?"Sanguine":"")+(sang&&dI?" energy combined with ":"")+(dI?"I-oriented DISC":sang?" energy":"")+" gives you the ability to positively shift the dynamic of any group you join. You make complex ideas accessible and generate enthusiasm quickly. This is a frequently underestimated strength\u2014it represents not simply charisma, but a form of professional influence that compounds over time.");
+  if(mel||dC)atBest.push("Your "+(mel?"Melancholic":"")+(mel&&dC?" nature combined with ":"")+(dC?"C-driven DISC":mel?" nature":"")+" reflects a commitment to standards that most professionals aspire to but rarely sustain. Colleagues rely on you to identify what others overlook. This thoroughness is not perfectionism for its own sake\u2014it is the quality foundation that entire teams and organizations depend on.");
+  if(phleg||dS)atBest.push("Your "+(phleg?"Phlegmatic":"")+(phleg&&dS?" nature paired with ":"")+(dS?"S-focused DISC":phleg?" nature":"")+" provides the stabilizing presence that every high-performing team requires. Where others react under pressure, you respond with measured consistency. This dependable approach builds the kind of trust that retains talent, strengthens teams, and sustains performance over the long term.");
+
+  let needsSupport=[];
+  if(I)needsSupport.push("High-visibility settings\u2014networking events, large meetings, fast-paced brainstorming\u2014tend to deplete your energy more than they replenish it. This is not a limitation, but it does require intentional strategy. Your strongest ideas may not reach the right audience without a trusted advocate who can represent your contributions in spaces where you naturally step back. The objective is not to change your style, but to ensure your perspective reaches the rooms where decisions are made.");
+  else needsSupport.push("You process ideas through dialogue, which fuels both your creativity and your influence. However, this tendency can also lead to premature commitments or a pace that outstrips your team\u2019s capacity to keep up. The solution is not less energy\u2014it is a trusted collaborator who can introduce a pause at critical decision points and ask the clarifying questions before momentum overtakes reflection.");
+  if(P)needsSupport.push("Rigid structure can feel limiting, and in excess, it genuinely constrains your effectiveness. However, without some degree of scaffolding, flexibility can begin to resemble avoidance. The balance lies in lightweight systems\u2014accountability partnerships rather than micromanagement, and project tools that track progress without restricting your creative process.");
+  else needsSupport.push("Your ability to create and follow through on plans is a genuine strength. The risk is that adherence to the plan can become the objective itself\u2014even when circumstances have shifted. Seek out colleagues and advisors who challenge your assumptions early and who frame necessary pivots as strategic refinements rather than failures.");
+  if(chol&&!phleg)needsSupport.push("Your intensity is an asset in execution, but it can create distance with colleagues who process at a different pace. Developing a genuine practice of active listening\u2014not as a technique, but as a habit\u2014will compound your influence more than any additional technical skill.");
+  if(mel&&!sang)needsSupport.push("The gap between \u201Cexcellent\u201D and \u201Cperfect\u201D is where your strongest work can stall. Developing a personal rubric\u2014distinguishing between work that is ready to deliver and work that genuinely requires more refinement\u2014will free significant energy and accelerate your output.");
+  if(dD&&!dS)needsSupport.push("Results achieved without team morale are inherently fragile. Brief, consistent one-on-one check-ins communicate something essential: that you value the people behind the performance, not just the performance itself. This investment in relationship compounds into more sustainable results.");
+
+  let leadership=[];
+  if(dD||chol)leadership.push("You lead from the front\u2014defining objectives, removing obstacles, and holding the standard. In high-stakes moments when others hesitate, you provide the decisive clarity that moves teams forward. This ability to say \u201CHere\u2019s what we\u2019re doing\u201D with conviction is a rare and valuable leadership trait.");
+  if(dI||sang)leadership.push("You lead through connection, articulating vision in terms people feel as much as understand. Your ability to read a room and adjust in real time allows you to build genuine buy-in without relying on positional authority\u2014a leadership skill that is difficult to develop and highly valuable.");
+  if(dS||phleg)leadership.push("You lead through trust, creating the psychological safety that allows teams to take meaningful risks and surface problems early. This style produces higher retention, deeper engagement, and more honest work\u2014outcomes that reflect one of the most difficult and valuable forms of leadership to develop.");
+  if(dC||mel)leadership.push("You lead through mastery, earning credibility by demonstrating deep competence and maintaining standards others might relax. Your teams produce high-quality, defensible work because they understand the standard begins with you\u2014and that you would never ask for something you haven\u2019t demonstrated yourself.");
+  if(F)leadership.push("What ties your leadership style together is a natural attentiveness to how decisions affect people\u2014their energy, their sense of belonging, their professional growth. This is not a soft skill. It is the reason people choose to follow you, not simply report to you.");
+  else leadership.push("What anchors your leadership style is the ability to cut through emotional complexity and identify the most effective path forward. Your team trusts you to make difficult calls when sentiment and data point in different directions. That analytical clarity is what makes your leadership especially trustworthy under pressure.");
+
+  let careers=[];
+  if(N&&F)careers=[{industry:"Counseling & Mental Health",roles:["Licensed Professional Counselor","Organizational Psychologist","Life Coach","Art Therapist"]},{industry:"Education & Org Development",roles:["Curriculum Designer","Corporate Trainer","Academic Dean","Instructional Coach"]},{industry:"Nonprofit & Social Impact",roles:["Program Director","Grant Writer","Community Organizer","Impact Analyst"]},{industry:"Arts & Creative Industries",roles:["Creative Director","Content Strategist","Documentary Producer","Brand Storyteller"]},{industry:"People Strategy & HR",roles:["Chief People Officer","Talent Development Manager","Employee Experience Lead","Recruitment Director"]},{industry:"DEI & Culture Consulting",roles:["DEI Strategist","Culture Transformation Lead","Belonging & Inclusion Director","Workshop Facilitator"]}];
+  else if(N&&!F)careers=[{industry:"Technology & Software Architecture",roles:["Solutions Architect","CTO","Machine Learning Engineer","Product Manager"]},{industry:"Management Consulting",roles:["Strategy Consultant","Engagement Manager","Business Analyst","Transformation Lead"]},{industry:"Scientific Research & Biotech",roles:["Research Scientist","Clinical Data Manager","Biotech Product Lead","Lab Director"]},{industry:"Finance & Investment Strategy",roles:["Portfolio Manager","Quantitative Analyst","Venture Capital Associate","Financial Strategist"]},{industry:"Cybersecurity & Data Analytics",roles:["Security Architect","Data Scientist","Threat Intelligence Analyst","CISO"]},{industry:"Aerospace & Defense",roles:["Systems Engineer","Program Manager","Research Analyst","Mission Planner"]}];
+  else if(!N&&F)careers=[{industry:"Healthcare Administration",roles:["Hospital Administrator","Patient Experience Director","Nursing Supervisor","Health Services Manager"]},{industry:"Social Work & Community Development",roles:["Clinical Social Worker","Case Manager","Community Outreach Director","Family Therapist"]},{industry:"Hospitality & Customer Experience",roles:["Guest Relations Director","Hotel General Manager","Customer Success Manager","Concierge Manager"]},{industry:"K\u201312 Education & Training",roles:["School Principal","Special Education Coordinator","Reading Specialist","Teacher Coach"]},{industry:"Ministry & Pastoral Leadership",roles:["Senior Pastor","Chaplain","Youth Ministry Director","Pastoral Counselor"]},{industry:"Event & Program Management",roles:["Program Coordinator","Event Director","Conference Planner","Volunteer Manager"]}];
+  else careers=[{industry:"Accounting & Financial Services",roles:["Certified Public Accountant","Financial Controller","Audit Manager","Tax Director"]},{industry:"Civil & Industrial Engineering",roles:["Project Engineer","Quality Assurance Manager","Site Supervisor","Process Improvement Lead"]},{industry:"Law & Regulatory Compliance",roles:["Compliance Officer","Paralegal Manager","Contract Analyst","Corporate Counsel"]},{industry:"Government & Public Policy",roles:["Policy Analyst","City Manager","Legislative Aide","Budget Director"]},{industry:"Supply Chain & Operations",roles:["Operations Manager","Logistics Director","Procurement Specialist","Warehouse Manager"]},{industry:"Real Estate & Construction",roles:["Construction Project Manager","Property Manager","Real Estate Analyst","Development Director"]}];
+  if(chol||dD)careers=careers.slice(0,4).concat([{industry:"Entrepreneurship & Venture Building",roles:["Founder / CEO","Business Development Director","Startup Advisor","Venture Strategist"]},{industry:"Executive Leadership & C-Suite",roles:["Chief Operating Officer","Managing Director","VP of Strategy","Executive Coach"]}]);
+  if(sang||dI)careers=careers.slice(0,4).concat([{industry:"Media & Brand Communications",roles:["Brand Manager","Public Relations Director","Social Media Strategist","Communications Lead"]},{industry:"Sales & Business Development",roles:["Account Executive","Sales Director","Partnerships Manager","Client Relationship Lead"]}]);
+  careers=[...new Map(careers.map(c=>[c.industry,c])).values()].slice(0,6);
+  const industries=careers.map(c=>c.industry);
+
+  let majors=[];
+  if(N&&F)majors=["Psychology","Communications","Social Work","Organizational Leadership","Education"];
+  else if(N&&!F)majors=["Computer Science","Data Science","Engineering","Finance","Information Systems"];
+  else if(!N&&F)majors=["Nursing","Human Services","Elementary Education","Hospitality Management","Ministry & Theology"];
+  else majors=["Accounting","Civil Engineering","Criminal Justice","Public Administration","Construction Management"];
+  if(chol||dD)majors=majors.slice(0,3).concat(["Business Administration","Entrepreneurship"]);
+  if(sang||dI)majors=majors.slice(0,3).concat(["Marketing","Public Relations"]);
+  if(mel||dC)majors=majors.slice(0,3).concat(["Mathematics","Information Technology"]);
+
+
+  let books=[];
+  if(chol||dD)books.push({title:"The 48 Laws of Power",author:"Robert Greene",why:"Your "+(chol?"Choleric":"D-dominant")+" drive means you naturally think in terms of leverage and positioning. Greene\u2019s framework will sharpen the strategic instincts you already possess while highlighting where ambition benefits from patience and restraint."});
+  else if(sang||dI)books.push({title:"How to Win Friends and Influence People",author:"Dale Carnegie",why:"You already possess strong natural persuasion skills. Carnegie\u2019s principles will help you formalize that social intuition into a repeatable framework. For someone with your relational strengths, this book serves as both validation and expansion\u2014reinforcing what works while adding new approaches."});
+  else if(phleg||dS)books.push({title:"Quiet: The Power of Introverts",author:"Susan Cain",why:"Your steady, thoughtful nature is a professional asset this book will help you fully leverage. Cain presents compelling evidence that the most impactful contributions often come from those who listen more than they speak\u2014an approach that aligns directly with your working style."});
+  else if(mel||dC)books.push({title:"Deep Work",author:"Cal Newport",why:"Your Melancholic precision and commitment to quality will find a kindred framework in Newport\u2019s research. This book provides both the structure to protect the focused time that produces your best work and the evidence-based rationale for prioritizing deep concentration."});
+  else books.push({title:"Start with Why",author:"Simon Sinek",why:"Understanding your core purpose is the foundation for every meaningful career decision that follows. Sinek\u2019s framework will help you articulate the \u201Cwhy\u201D behind your work in a way that attracts aligned opportunities and collaborators."});
+
+  if(N&&F)books.push({title:"Dare to Lead",author:"Bren\u00E9 Brown",why:"Your intuitive-feeling orientation means you naturally lead with empathy and openness\u2014qualities you may sometimes undervalue in professional settings. Brown\u2019s research provides the evidence that courage and authentic connection are not peripheral skills but central to effective leadership."});
+  else if(N&&!F)books.push({title:"Thinking in Systems",author:"Donella Meadows",why:"You already think in systems intuitively. Meadows provides the vocabulary and models to make that systems-level thinking visible and communicable to others\u2014which is how strategic thinkers like you build buy-in for complex ideas."});
+  else if(!N&&F)books.push({title:"The 7 Habits of Highly Effective People",author:"Stephen R. Covey",why:"Your sensing-feeling combination means you gravitate toward practical wisdom with real-world application. Covey\u2019s habits are daily practices rather than abstract theory\u2014exactly the kind of framework that produces lasting change for someone with your orientation."});
+  else books.push({title:"Good to Great",author:"Jim Collins",why:"Your analytical, detail-oriented mind will appreciate Collins\u2019s data-driven approach to distinguishing the exceptional from the adequate. This book aligns with how you think: evidence-based conclusions, disciplined execution, and the compounding power of consistent, well-chosen actions."});
+
+  if(I)books.push({title:"Steal the Show",author:"Michael Port",why:"This is not about changing who you are. It\u2019s about developing the ability to perform effectively in high-stakes moments\u2014presentations, pitches, difficult conversations\u2014while preserving your introverted strengths. Port provides a practical framework for showing up with impact while remaining authentic."});
+  else if(P)books.push({title:"Atomic Habits",author:"James Clear",why:"Your perceiving style keeps you flexible and creative, but Clear\u2019s systems-based approach provides structure without rigidity. His emphasis on small, sustainable habits complements your adaptive nature\u2014offering the consistency your work benefits from without constraining your creative process."});
+  else if(F&&!I)books.push({title:"Radical Candor",author:"Kim Scott",why:"Your genuine care for people is a strength, but it can sometimes make direct feedback more difficult than it needs to be. Scott\u2019s framework offers a practical method for being both candid and compassionate simultaneously\u2014exactly the leadership balance your profile is designed for."});
+  else books.push({title:"The Obstacle Is the Way",author:"Ryan Holiday",why:"Your thinking-judging orientation means you naturally meet challenges with logic and structure. Holiday\u2019s Stoic framework will deepen that instinct, providing a philosophy for converting resistance into momentum and setbacks into strategic opportunities."});
+
+  let actions=[];
+  actions.push("Share this report with a trusted mentor, colleague, or coach and ask a direct question: \u201CWhere do you see my blind spots showing up in practice?\u201D Listen to their response without defending\u2014the goal is perspective, not validation.");
+  if(I)actions.push("Within the next 30 days, identify one high-visibility opportunity to contribute your expertise publicly\u2014a presentation, a published piece, or a meeting where you speak early rather than last. The goal is not performance, but professional visibility.");
+  else actions.push("Block two uninterrupted hours this week\u2014no meetings, no messages, no external input. Use that time to develop one idea that your collaborative processing style hasn\u2019t given enough space to fully form.");
+  actions.push("Select one industry from your recommended list that you have not yet explored and schedule three informational conversations with professionals in that field within the next 60 days. Prioritize direct conversation\u2014phone or in-person\u2014over digital outreach.");
+
+  return{atBest,needsSupport,leadership,careers,industries,majors,dims,books,actions,nickname};
+}
+
+function RadarChart({dims,size=260}){
+  const ref=useRef(null);
+  useEffect(()=>{
+    if(!ref.current)return;
+    const svg=d3.select(ref.current);svg.selectAll("*").remove();
+    const cx=size/2,cy=size/2,R=size*0.30;
+    const keys=DIMENSIONS.map(d=>d.key),vals=keys.map(k=>dims[k]/100),n=keys.length;
+    const ang=i=>(Math.PI*2*i/n)-Math.PI/2;
+    const px=(i,r)=>cx+R*r*Math.cos(ang(i)),py=(i,r)=>cy+R*r*Math.sin(ang(i));
+    [0.25,0.5,0.75,1].forEach(r=>{const pts=keys.map((_,i)=>px(i,r)+","+py(i,r)).join(" ");svg.append("polygon").attr("points",pts).attr("fill","none").attr("stroke",C.divider).attr("stroke-width",r===1?1:0.5).attr("stroke-dasharray",r===1?"0":"2,3");});
+    keys.forEach((_,i)=>{svg.append("line").attr("x1",cx).attr("y1",cy).attr("x2",px(i,1)).attr("y2",py(i,1)).attr("stroke",C.divider).attr("stroke-width",0.5);});
+    const dp=vals.map((v,i)=>px(i,v)+","+py(i,v)).join(" ");
+    svg.append("polygon").attr("points",dp).attr("fill",C.forest).attr("fill-opacity",0.15).attr("stroke",C.forest).attr("stroke-width",2);
+    vals.forEach((v,i)=>{svg.append("circle").attr("cx",px(i,v)).attr("cy",py(i,v)).attr("r",3.5).attr("fill",C.forest).attr("stroke",C.white).attr("stroke-width",1.5);});
+    const shortLabels=["Strategic","Relational","Execution","Influence","Innovation"];
+    DIMENSIONS.forEach((d,i)=>{
+      const lx=px(i,1.32),ly=py(i,1.32);
+      const anchor=lx<cx-10?"end":lx>cx+10?"start":"middle";
+      svg.append("text").attr("x",lx).attr("y",ly).attr("text-anchor",anchor).attr("dominant-baseline","middle").attr("font-size",10).attr("font-family","DM Sans,sans-serif").attr("font-weight",600).attr("fill",C.textMid).text(shortLabels[i]);
+      svg.append("text").attr("x",lx).attr("y",ly+13).attr("text-anchor",anchor).attr("dominant-baseline","middle").attr("font-size",9).attr("font-family","DM Sans,sans-serif").attr("fill",C.textMuted).text(Math.round(dims[d.key])+"%");
+    });
+  },[dims,size]);
+  return <svg ref={ref} width={size} height={size} style={{display:"block",margin:"0 auto",overflow:"visible"}}/>;
+}
+
+function DimensionBars({dims}){
+  const colors=[C.forest,C.mustard,C.orange,C.brown,C.forestMid];
+  return <div>{DIMENSIONS.map((d,i)=><div key={d.key} style={{marginBottom:8}}>
+    <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+      <span style={{fontSize:9,color:C.textMuted,fontFamily:"DM Sans,sans-serif"}}>{d.low}</span>
+      <span style={{fontSize:10,fontWeight:600,color:C.textMid,fontFamily:"DM Sans,sans-serif"}}>{d.label}</span>
+      <span style={{fontSize:9,color:C.textMuted,fontFamily:"DM Sans,sans-serif"}}>{d.high}</span>
+    </div>
+    <div style={{height:7,background:C.creamDark,borderRadius:4,overflow:"hidden",position:"relative"}}>
+      <div style={{position:"absolute",left:0,top:0,height:"100%",width:dims[d.key]+"%",background:"linear-gradient(90deg,"+colors[i]+"BB,"+colors[i]+")",borderRadius:4,transition:"width 0.8s ease"}}/>
+      <div style={{position:"absolute",left:"50%",top:0,width:1,height:"100%",background:C.textMuted+"22"}}/>
+    </div>
+  </div>)}</div>;
+}
+
+function NativeSelect({label,options,value,onChange,placeholder}){
+  return <div>
+    <label style={{display:"block",marginBottom:5,fontFamily:"DM Sans,sans-serif",fontSize:11,fontWeight:600,color:C.forest,textTransform:"uppercase",letterSpacing:"0.1em"}}>{label}</label>
+    <select value={value} onChange={e=>onChange(e.target.value)} style={{width:"100%",padding:"11px 14px",borderRadius:6,border:"1px solid "+(value?C.forest:C.divider),background:C.white,fontSize:14,fontFamily:"DM Sans,sans-serif",color:value?C.text:C.textMuted,outline:"none",WebkitAppearance:"none",appearance:"none",backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238A7E72' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")",backgroundRepeat:"no-repeat",backgroundPosition:"right 12px center"}}>
+      <option value="" disabled>{placeholder}</option>
+      {options.map(o=><option key={o} value={o}>{o}</option>)}
+    </select>
+  </div>;
+}
+
+function MultiSelect({label,options,values,onChange,note}){
+  return <div>
+    <label style={{display:"block",marginBottom:4,fontFamily:"DM Sans,sans-serif",fontSize:11,fontWeight:600,color:C.forest,textTransform:"uppercase",letterSpacing:"0.1em"}}>{label}</label>
+    {note&&<p style={{margin:"0 0 8px",fontSize:12,color:C.textMuted,fontFamily:"DM Sans,sans-serif"}}>{note}</p>}
+    <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
+      {options.map(o=>{const sel=values.includes(o);return <button key={o} onClick={()=>onChange(sel?values.filter(v=>v!==o):[...values,o])} style={{padding:"9px 16px",borderRadius:20,border:"1px solid "+(sel?C.forest:C.divider),background:sel?C.forest:C.white,color:sel?C.white:C.text,cursor:"pointer",fontSize:13,fontWeight:sel?600:400,fontFamily:"DM Sans,sans-serif",transition:"all 0.2s"}}>{sel?"\u2713 ":""}{o}</button>;})}
+    </div>
+  </div>;
+}
+
+function LinkedInCard({firstName,lastName,personality,high5,temperaments,disc,dims,profile,onClose}){
+  const ref=useRef(null);
+  return <div style={{position:"fixed",inset:0,zIndex:100,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,overflowY:"auto"}} onClick={onClose}>
+    <div ref={ref} onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:480,background:C.white,borderRadius:12,overflow:"hidden",boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}}>
+      <div style={{background:C.forest,padding:"24px 28px 18px",position:"relative"}}>
+        <div style={{position:"absolute",bottom:0,left:0,right:0,height:3,background:"linear-gradient(90deg,"+C.mustard+","+C.orange+","+C.mustard+")"}}/>
+        <p style={{fontFamily:"DM Sans,sans-serif",fontSize:9,color:C.mustardLight,textTransform:"uppercase",letterSpacing:"0.18em",marginBottom:6}}>Career Profile</p>
+        <h2 style={{fontFamily:"Playfair Display,serif",fontSize:26,color:C.white,margin:"0 0 2px"}}>{firstName} {lastName}</h2>
+        <p style={{fontFamily:"Playfair Display,serif",fontSize:15,color:C.mustardLight,margin:"0 0 6px",fontStyle:"italic"}}>{profile.nickname}</p>
+        <p style={{fontFamily:"DM Sans,sans-serif",fontSize:10,color:"rgba(255,255,255,0.5)",margin:0}}>{personality} {"\u00B7"} {temperaments.join(", ")} {"\u00B7"} {disc.map(d=>d[0]).join("")}</p>
+      </div>
+      <div style={{padding:"20px 28px"}}>
+        <div style={{marginBottom:14}}>
+          {DIMENSIONS.map((d,i)=><div key={d.key} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
+            <span style={{width:80,fontSize:9,fontFamily:"DM Sans,sans-serif",color:C.textMuted,textAlign:"right"}}>{d.label}</span>
+            <div style={{flex:1,height:5,background:C.creamDark,borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:dims[d.key]+"%",background:[C.forest,C.mustard,C.orange,C.brown,C.forestMid][i],borderRadius:3}}/></div>
+            <span style={{width:24,fontSize:9,fontFamily:"DM Sans,sans-serif",color:C.textMid,fontWeight:600}}>{Math.round(dims[d.key])}%</span>
+          </div>)}
+        </div>
+        <div style={{padding:"10px 14px",background:C.cream,borderRadius:6}}>
+          <p style={{fontFamily:"DM Sans,sans-serif",fontSize:11,color:C.textMid,margin:0,lineHeight:1.5}}><strong>Top industries:</strong> {profile.industries.slice(0,3).join(" \u00B7 ")}</p>
+        </div>
+        <p style={{fontFamily:"DM Sans,sans-serif",fontSize:8,color:C.textMuted,margin:"10px 0 0",textAlign:"center"}}>Generated with Career Profile Generator</p>
+      </div>
+      <div style={{padding:"10px 28px 14px",display:"flex",gap:8,justifyContent:"flex-end"}}>
+        <button onClick={onClose} style={{padding:"8px 18px",borderRadius:6,border:"1px solid "+C.divider,background:C.white,color:C.textMid,cursor:"pointer",fontSize:12,fontFamily:"DM Sans,sans-serif"}}>Close</button>
+        <button onClick={()=>{if(ref.current){const r=document.createRange();r.selectNodeContents(ref.current);const s=window.getSelection();s.removeAllRanges();s.addRange(r);document.execCommand("copy");s.removeAllRanges();alert("Content copied! Take a screenshot or paste into LinkedIn.");}}} style={{padding:"8px 18px",borderRadius:6,border:"none",background:C.forest,color:C.white,cursor:"pointer",fontSize:12,fontFamily:"DM Sans,sans-serif",fontWeight:600}}>Copy</button>
+      </div>
+    </div>
+  </div>;
+}
+
+function ReportPage({firstName,lastName,personality,high5,temperaments,disc,profile,onBack}){
+  const today=new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
+  const[dl,setDl]=useState(false);
+  const[showLI,setShowLI]=useState(false);
+  const dims=profile.dims;
+  useEffect(()=>{window.scrollTo(0,0);},[]);
+  const isMobile=typeof navigator!=="undefined"&&/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  const isIOS=typeof navigator!=="undefined"&&/iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  const loadJsPDF=useCallback(()=>new Promise((resolve,reject)=>{
+    if(window.jspdf){resolve(window.jspdf.jsPDF);return;}
+    const s=document.createElement("script");
+    s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js";
+    s.onload=()=>resolve(window.jspdf.jsPDF);
+    s.onerror=()=>reject(new Error("Failed to load jsPDF"));
+    document.head.appendChild(s);
+  }),[]);
+
+  const buildPDF=useCallback(async()=>{
+    const jsPDF=await loadJsPDF();
+    const doc=new jsPDF({unit:"pt",format:"letter"});
+    const W=612,H=792,ML=50,MR=50,cW=W-ML-MR;
+    const hex=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+    let y=0;
+    const wrap=(text,x,sy,mw,fs,clr,sty,lh)=>{sty=sty||"normal";lh=lh||1.6;doc.setFontSize(fs);doc.setFont("helvetica",sty);doc.setTextColor(...hex(clr));const ls=doc.splitTextToSize(text,mw);let cy=sy;for(const l of ls){if(cy+fs*lh>H-40){foot();doc.addPage();cy=50;}doc.text(l,x,cy);cy+=fs*lh;}return cy;};
+    const foot=()=>{doc.setDrawColor(...hex(C.forest));doc.setLineWidth(2);doc.line(ML,H-32,W-MR,H-32);doc.setFontSize(7);doc.setFont("helvetica","normal");doc.setTextColor(...hex(C.textMuted));doc.text("Career Profile \u2014 "+firstName+" "+lastName,ML,H-20);doc.text("Generated "+today,W-MR,H-20,{align:"right"});};
+    const sec=(num,title,sy,ac)=>{let cy=sy;if(cy+30>H-50){foot();doc.addPage();cy=50;}doc.setFillColor(...hex(ac));doc.circle(ML+8,cy-3,8,"F");doc.setFontSize(8);doc.setFont("helvetica","bold");doc.setTextColor(255,255,255);doc.text(String(num),ML+(num>9?4:5.5),cy);doc.setFontSize(13);doc.setTextColor(...hex(C.forest));doc.text(title,ML+22,cy);cy+=5;doc.setDrawColor(...hex(C.mustard));doc.setLineWidth(1.2);doc.line(ML+22,cy,W-MR,cy);return cy+12;};
+    doc.setFillColor(...hex(C.forest));doc.rect(0,0,W,108,"F");
+    doc.setFillColor(...hex(C.mustard));doc.rect(0,105,W,3,"F");
+    doc.setFontSize(8);doc.setFont("helvetica","normal");doc.setTextColor(...hex(C.mustardLight));doc.text("PERSONALIZED CAREER PROFILE REPORT",ML,32);
+    doc.setFontSize(26);doc.setFont("helvetica","bold");doc.setTextColor(255,255,255);doc.text(firstName+" "+lastName,ML,58);
+    doc.setFontSize(14);doc.setFont("helvetica","italic");doc.setTextColor(...hex(C.mustardLight));doc.text(profile.nickname,ML,76);
+    doc.setFontSize(9);doc.setTextColor(200,200,200);doc.text(today,ML,92);
+    y=148;
+    [["When You Are at Your Best",C.forest,profile.atBest],["Where You Need Support",C.brown,profile.needsSupport],["How You Show Up as a Leader",C.mustard,profile.leadership]].forEach(([title,ac,texts],si)=>{y=sec(si+1,title,y,ac);for(const t of texts){y=wrap(t,ML,y,cW,9,C.text);y+=4;}y+=8;});
+    foot();doc.addPage();y=50;
+    y=sec(4,"Industries & Careers That Fit You",y,C.orange);
+    for(const c of profile.careers){if(y+40>H-50){foot();doc.addPage();y=50;}doc.setFontSize(10);doc.setFont("helvetica","bold");doc.setTextColor(...hex(C.forest));doc.text(c.industry,ML,y+5);doc.setFontSize(8);doc.setFont("helvetica","normal");doc.setTextColor(...hex(C.textMid));doc.text(c.roles.join("  |  "),ML,y+17);y+=28;}
+    y+=8;
+    doc.setFontSize(9);doc.setFont("helvetica","bold");doc.setTextColor(...hex(C.forest));doc.text("Recommended College Majors",ML,y);y+=14;
+    doc.setFontSize(8.5);doc.setFont("helvetica","normal");doc.setTextColor(...hex(C.textMid));doc.text(profile.majors.join("  |  "),ML,y);y+=20;
+    y=sec(5,"Books & Action",y,C.orange);
+    doc.setFontSize(9);doc.setFont("helvetica","bold");doc.setTextColor(...hex(C.forest));doc.text("Recommended Reading",ML,y);y+=14;
+    for(const b of profile.books){if(y+50>H-50){foot();doc.addPage();y=50;}doc.setFontSize(9.5);doc.setFont("helvetica","bold");doc.setTextColor(...hex(C.forest));doc.text(b.title,ML,y);doc.setFontSize(8);doc.setFont("helvetica","italic");doc.setTextColor(...hex(C.textMuted));doc.text("by "+b.author,ML,y+12);y=wrap(b.why,ML,y+24,cW,8,C.textMid,"normal",1.5);y+=8;}
+    y+=4;doc.setFontSize(9);doc.setFont("helvetica","bold");doc.setTextColor(...hex(C.forest));doc.text("Action Steps",ML,y);y+=12;
+    for(const a of profile.actions){y=wrap("\u2022 "+a,ML,y,cW,8.5,C.text,"normal",1.5);y+=4;}
+    y+=10;if(y+40>H-50){foot();doc.addPage();y=50;}
+    doc.setFillColor(...hex(C.cream));doc.roundedRect(ML,y,cW,36,3,3,"F");
+    wrap("Methodology: This report synthesizes four frameworks\u201416Personalities, HIGH5 Strengths, Four Temperaments, and DISC\u2014into a unified career profile. Each captures a distinct dimension of professional identity; their intersection reveals patterns no single assessment surfaces alone.",ML+10,y+12,cW-20,7.5,C.textMid,"normal",1.4);
+    foot();return doc;
+  },[firstName,lastName,profile,today,loadJsPDF]);
+
+  const handleDownload=useCallback(async()=>{
+    setDl(true);
+    try{
+      const doc=await buildPDF();
+      const blob=doc.output("blob");
+      const url=URL.createObjectURL(blob);
+      const fname="Career_Profile_"+firstName+"_"+lastName+".pdf";
+      if(isIOS){
+        const w=window.open(url,"_blank");
+        if(!w){const a=document.createElement("a");a.href=url;a.download=fname;document.body.appendChild(a);a.click();document.body.removeChild(a);}
+      }else{
+        const a=document.createElement("a");a.href=url;a.download=fname;document.body.appendChild(a);a.click();document.body.removeChild(a);
+      }
+      setTimeout(()=>URL.revokeObjectURL(url),10000);
+    }catch(err){console.error(err);alert("PDF error. Please try again.");}
+    setDl(false);
+  },[buildPDF,firstName,lastName,isIOS]);
+
+  const handleSaveToFiles=useCallback(async()=>{
+    setDl(true);
+    try{
+      const doc=await buildPDF();
+      const blob=doc.output("blob");
+      const fname="Career_Profile_"+firstName+"_"+lastName+".pdf";
+      const file=new File([blob],fname,{type:"application/pdf"});
+      if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+        await navigator.share({files:[file],title:"Career Profile - "+firstName+" "+lastName});
+      }else{
+        const url=URL.createObjectURL(blob);
+        window.open(url,"_blank");
+        setTimeout(()=>URL.revokeObjectURL(url),10000);
+      }
+    }catch(err){if(err.name!=="AbortError"){console.error(err);alert("Save error. Please try again.");}}
+    setDl(false);
+  },[buildPDF,firstName,lastName]);
+
+  const Section=({num,title,accent,children})=>(
+    <div style={{marginBottom:32}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+        <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:"50%",background:accent,color:C.white,fontSize:11,fontWeight:700,fontFamily:"DM Sans,sans-serif",flexShrink:0}}>{num}</span>
+        <h2 style={{fontFamily:"Playfair Display,serif",fontSize:18,fontWeight:700,color:C.forest,margin:0,paddingBottom:5,borderBottom:"2px solid "+C.mustard,flex:1}}>{title}</h2>
+      </div>
+      <div style={{fontFamily:"DM Sans,sans-serif",fontSize:14,lineHeight:1.8,color:C.text}}>{children}</div>
+    </div>
+  );
+
+  return <div style={{background:C.cream,minHeight:"100vh"}}>
+    <style>{"@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');*{box-sizing:border-box;}@keyframes fadeUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}@keyframes spin{to{transform:rotate(360deg);}}"}</style>
+    {showLI&&<LinkedInCard firstName={firstName} lastName={lastName} personality={personality} high5={high5} temperaments={temperaments} disc={disc} dims={dims} profile={profile} onClose={()=>setShowLI(false)}/>}
+    <div style={{maxWidth:720,margin:"0 auto",padding:"16px 16px 0",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,animation:"fadeUp 0.3s ease both"}}>
+      <button onClick={onBack} style={{padding:"8px 16px",borderRadius:6,border:"1px solid "+C.forest,background:"transparent",color:C.forest,cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"DM Sans,sans-serif"}}>{"\u2190"} New</button>
+      <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+        <button onClick={()=>setShowLI(true)} style={{padding:"8px 14px",borderRadius:6,border:"1px solid "+C.divider,background:C.white,color:C.textMid,cursor:"pointer",fontSize:12,fontFamily:"DM Sans,sans-serif"}}>LinkedIn</button>
+        {isMobile&&<button onClick={handleSaveToFiles} disabled={dl} style={{padding:"8px 14px",borderRadius:6,border:"1px solid "+C.divider,background:C.white,color:C.textMid,cursor:dl?"wait":"pointer",fontSize:12,fontFamily:"DM Sans,sans-serif",display:"flex",alignItems:"center",gap:5}}>Save to Files</button>}
+        <button onClick={handleDownload} disabled={dl} style={{padding:"8px 18px",borderRadius:6,border:"none",background:C.forest,color:C.white,cursor:dl?"wait":"pointer",fontSize:12,fontWeight:600,fontFamily:"DM Sans,sans-serif",display:"flex",alignItems:"center",gap:5,opacity:dl?0.75:1}}>
+          {dl?<span style={{display:"inline-block",width:12,height:12,border:"2px solid rgba(255,255,255,0.3)",borderTopColor:"white",borderRadius:"50%",animation:"spin 0.6s linear infinite"}}/>:"\u2193"} {dl?"Generating...":isIOS?"Open PDF":"Download PDF"}
+        </button>
+      </div>
+    </div>
+    <div style={{maxWidth:720,margin:"12px auto 40px",background:C.white,boxShadow:"0 1px 20px rgba(0,0,0,0.05)",borderRadius:2,animation:"fadeUp 0.4s ease 0.05s both"}}>
+      <div style={{background:C.forest,padding:"32px 28px 26px",position:"relative"}}>
+        <div style={{position:"absolute",bottom:0,left:0,right:0,height:3,background:"linear-gradient(90deg,"+C.mustard+","+C.orange+","+C.mustard+")"}}/>
+        <p style={{fontFamily:"DM Sans,sans-serif",fontSize:9,color:C.mustardLight,textTransform:"uppercase",letterSpacing:"0.18em",marginBottom:10}}>Career Profile Report</p>
+        <h1 style={{fontFamily:"Playfair Display,serif",fontSize:32,fontWeight:700,color:C.white,margin:"0 0 4px",lineHeight:1.1}}>{firstName} {lastName}</h1>
+        <p style={{fontFamily:"Playfair Display,serif",fontSize:17,color:C.mustardLight,margin:"0 0 8px",fontStyle:"italic"}}>{profile.nickname}</p>
+        <p style={{fontFamily:"DM Sans,sans-serif",fontSize:10,color:"rgba(255,255,255,0.4)",margin:0}}>{today}</p>
+      </div>
+      <div style={{padding:"14px 28px",borderBottom:"1px solid "+C.divider,display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px 24px"}}>
+        {[["16Personalities",personality],["Temperament(s)",temperaments.join(", ")],["DISC",disc.join(", ")],["HIGH5 Strengths",high5.join(", ")]].map(([l,v])=><div key={l}><p style={{fontFamily:"DM Sans,sans-serif",fontSize:8,textTransform:"uppercase",letterSpacing:"0.12em",color:C.textMuted,margin:"0 0 1px"}}>{l}</p><p style={{fontFamily:"Playfair Display,serif",fontSize:12,fontWeight:600,color:C.forest,margin:0}}>{v}</p></div>)}
+      </div>
+      <div style={{padding:"28px 28px 32px"}}>
+        <div style={{marginBottom:32,padding:"18px 20px",background:C.offWhite,borderRadius:8,border:"1px solid "+C.divider,overflow:"visible"}}>
+          <h3 style={{fontFamily:"Playfair Display,serif",fontSize:15,color:C.forest,margin:"0 0 14px",textAlign:"center"}}>Your Five-Dimension Profile</h3>
+          <div style={{overflow:"visible",padding:"10px 0"}}><RadarChart dims={dims} size={260}/></div>
+          <div style={{marginTop:16}}><DimensionBars dims={dims}/></div>
+        </div>
+        <Section num={1} title="When You Are at Your Best" accent={C.forest}>{profile.atBest.map((t,i)=><p key={i} style={{margin:"0 0 10px"}}>{t}</p>)}</Section>
+        <Section num={2} title="Where You Need Support" accent={C.brown}>{profile.needsSupport.map((t,i)=><p key={i} style={{margin:"0 0 10px"}}>{t}</p>)}</Section>
+        <Section num={3} title="How You Show Up as a Leader" accent={C.mustard}>{profile.leadership.map((t,i)=><p key={i} style={{margin:"0 0 10px"}}>{t}</p>)}</Section>
+        <Section num={4} title="Industries & Careers That Fit You" accent={C.orange}>
+          {profile.careers.map((c,i)=>{const ac=[C.forest,C.mustard,C.orange,C.brown,C.forestMid,C.orangeLight][i%6];return <div key={i} style={{marginBottom:12,padding:"12px 16px",borderRadius:6,borderLeft:"3px solid "+ac,background:ac+"06"}}>
+            <p style={{fontFamily:"Playfair Display,serif",fontSize:14,fontWeight:700,color:ac,margin:"0 0 6px"}}>{c.industry}</p>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{c.roles.map((r,ri)=><span key={ri} style={{fontSize:11,fontFamily:"DM Sans,sans-serif",color:C.textMid,padding:"4px 10px",borderRadius:12,background:C.white,border:"1px solid "+C.divider}}>{r}</span>)}</div>
+          </div>;})}
+          <p style={{margin:"10px 0 0 0",color:C.textMuted,fontStyle:"italic",fontSize:12}}>Based on the intersection of your cognitive preferences, temperament, strengths, and interaction style.</p>
+          <div style={{marginTop:16,padding:"14px 16px",borderRadius:6,background:C.forestPale,border:"1px solid "+C.forest+"22"}}>
+            <p style={{fontFamily:"Playfair Display,serif",fontSize:13,fontWeight:700,color:C.forest,margin:"0 0 8px"}}>Recommended College Majors</p>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {profile.majors.map((m,i)=><span key={i} style={{fontSize:12,fontFamily:"DM Sans,sans-serif",color:C.forest,padding:"5px 12px",borderRadius:14,background:C.white,border:"1px solid "+C.forest+"33",fontWeight:500}}>{m}</span>)}
+            </div>
+          </div>
+        </Section>
+        <Section num={5} title="What's Next: Books & Action" accent={C.orange}>
+          <div style={{marginBottom:18}}>
+            <h4 style={{fontFamily:"Playfair Display,serif",fontSize:13,color:C.forest,margin:"0 0 10px"}}>Recommended Reading</h4>
+            {profile.books.map((b,i)=><div key={i} style={{marginBottom:12,padding:"14px 16px",borderRadius:6,background:C.cream,border:"1px solid "+C.divider}}>
+              <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:4}}>
+                <span style={{fontFamily:"DM Sans,sans-serif",fontSize:10,fontWeight:700,color:C.white,background:C.mustard,borderRadius:4,padding:"2px 7px",flexShrink:0}}>{i+1}</span>
+                <p style={{fontFamily:"Playfair Display,serif",fontSize:14,fontWeight:700,color:C.forest,margin:0}}>{b.title}</p>
+              </div>
+              <p style={{fontFamily:"DM Sans,sans-serif",fontSize:11,color:C.textMuted,margin:"0 0 6px",fontStyle:"italic"}}>by {b.author}</p>
+              <p style={{fontFamily:"DM Sans,sans-serif",fontSize:12.5,color:C.textMid,margin:0,lineHeight:1.6}}>{b.why}</p>
+            </div>)}
+          </div>
+          <div>
+            <h4 style={{fontFamily:"Playfair Display,serif",fontSize:13,color:C.forest,margin:"0 0 8px"}}>Action Steps</h4>
+            {profile.actions.map((a,i)=><div key={i} style={{display:"flex",gap:8,marginBottom:8,padding:"9px 12px",background:C.forestPale,borderRadius:5,borderLeft:"3px solid "+C.forest}}><span style={{color:C.forest,fontWeight:700,flexShrink:0,fontSize:12}}>{i+1}.</span><p style={{margin:0,fontSize:13,color:C.text,lineHeight:1.55}}>{a}</p></div>)}
+          </div>
+        </Section>
+        <div style={{padding:"16px 20px",borderRadius:6,background:C.cream,border:"1px solid "+C.divider}}>
+          <p style={{fontFamily:"DM Sans,sans-serif",fontSize:8,textTransform:"uppercase",letterSpacing:"0.12em",color:C.forest,fontWeight:700,margin:"0 0 6px"}}>Methodology</p>
+          <p style={{fontFamily:"DM Sans,sans-serif",fontSize:11.5,color:C.textMid,margin:0,lineHeight:1.65}}>This report synthesizes four empirically-informed personality frameworks{"\u2014"}16Personalities (MBTI-based cognitive preferences), HIGH5 Strengths (positive-psychology capacity model), the Four Temperaments (behavioral energy patterns), and DISC (workplace interaction styles){"\u2014"}into a single, unified career profile. Each framework captures a distinct layer of how you think, work, lead, and relate. Their intersection reveals patterns that no single assessment can surface on its own.</p>
+        </div>
+      </div>
+      <div style={{padding:"10px 28px",borderTop:"2px solid "+C.forest,display:"flex",justifyContent:"space-between"}}>
+        <p style={{fontFamily:"DM Sans,sans-serif",fontSize:8,color:C.textMuted,margin:0}}>Career Profile {"\u2014"} {firstName} {lastName}</p>
+        <p style={{fontFamily:"DM Sans,sans-serif",fontSize:8,color:C.textMuted,margin:0}}>Generated {today}</p>
+      </div>
+    </div>
+  </div>;
+}
+
+function IntakeCard({num,accent,title,children}){
+  return <div style={{background:C.white,borderRadius:10,padding:"22px 24px",border:"1px solid "+C.divider,marginBottom:16,boxShadow:"0 1px 4px rgba(0,0,0,0.02)"}}>
+    <h2 style={{fontFamily:"Playfair Display,serif",fontSize:17,fontWeight:700,color:C.text,marginBottom:16,display:"flex",alignItems:"center",gap:9}}>
+      <span style={{width:24,height:24,borderRadius:6,background:accent,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:11,color:C.white,fontFamily:"DM Sans,sans-serif",fontWeight:700}}>{num}</span>{title}
+    </h2>{children}
+  </div>;
+}
+
+function App(){
+  const[page,setPage]=useState("intake");
+  const[fn,setFn]=useState("");
+  const[ln,setLn]=useState("");
+  const[pers,setPers]=useState("");
+  const[h5,setH5]=useState([]);
+  const[temps,setTemps]=useState([]);
+  const[discs,setDiscs]=useState([]);
+  const[profile,setProfile]=useState(null);
+
+  const ok=fn.trim()&&ln.trim()&&pers&&h5.length>=1&&temps.length>=1&&discs.length>=1;
+
+  if(page==="report"&&profile)return <ReportPage firstName={fn} lastName={ln} personality={pers} high5={h5} temperaments={temps} disc={discs} profile={profile} onBack={()=>{setPage("intake");setProfile(null);}}/>;
+
+  return <div style={{minHeight:"100vh",background:C.cream}}>
+    <style>{"@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');*{box-sizing:border-box;margin:0;padding:0;}@keyframes fadeUp{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-thumb{background:"+C.creamDark+";border-radius:3px;}input::placeholder{color:"+C.textMuted+";}select{color-scheme:light;}"}</style>
+    <div style={{background:C.forest,padding:"26px 20px 22px",textAlign:"center",position:"relative"}}>
+      <div style={{position:"absolute",bottom:0,left:0,right:0,height:3,background:"linear-gradient(90deg,"+C.mustard+","+C.orange+","+C.mustard+")"}}/>
+      <p style={{fontFamily:"DM Sans,sans-serif",fontSize:8,color:C.mustardLight,textTransform:"uppercase",letterSpacing:"0.2em",marginBottom:8}}>Powered by Four Frameworks</p>
+      <h1 style={{fontFamily:"Playfair Display,serif",fontSize:28,fontWeight:700,color:C.white,margin:"0 0 5px"}}>Career Profile Generator</h1>
+      <p style={{fontFamily:"DM Sans,sans-serif",fontSize:12,color:"rgba(255,255,255,0.5)"}}>Discover your unique professional blueprint</p>
+    </div>
+    <div style={{maxWidth:640,margin:"0 auto",padding:"24px 16px 40px",animation:"fadeUp 0.4s ease both"}}>
+      <IntakeCard num="1" accent={C.mustard} title="Your Name">
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div>
+            <label style={{display:"block",marginBottom:4,fontFamily:"DM Sans,sans-serif",fontSize:10,fontWeight:600,color:C.forest,textTransform:"uppercase",letterSpacing:"0.1em"}}>First Name</label>
+            <input value={fn} onChange={e=>setFn(e.target.value)} placeholder="First Name" style={{width:"100%",padding:"10px 12px",borderRadius:6,border:"1px solid "+(fn?C.forest:C.divider),background:C.white,fontSize:14,fontFamily:"DM Sans,sans-serif",color:C.text,outline:"none"}}/>
+          </div>
+          <div>
+            <label style={{display:"block",marginBottom:4,fontFamily:"DM Sans,sans-serif",fontSize:10,fontWeight:600,color:C.forest,textTransform:"uppercase",letterSpacing:"0.1em"}}>Last Name</label>
+            <input value={ln} onChange={e=>setLn(e.target.value)} placeholder="Last Name" style={{width:"100%",padding:"10px 12px",borderRadius:6,border:"1px solid "+(ln?C.forest:C.divider),background:C.white,fontSize:14,fontFamily:"DM Sans,sans-serif",color:C.text,outline:"none"}}/>
+          </div>
+        </div>
+      </IntakeCard>
+      <IntakeCard num="2" accent={C.orange} title="16Personalities Type">
+        <NativeSelect label="Your personality type" options={PERSONALITIES} value={pers} onChange={setPers} placeholder="Select your type..."/>
+      </IntakeCard>
+      <IntakeCard num="3" accent={C.forest} title="HIGH5 Strengths">
+        <NativeSelect label="Add strengths one at a time" options={STRENGTHS.filter(s=>!h5.includes(s))} value="" onChange={v=>setH5([...h5,v])} placeholder="Select a strength..."/>
+        {h5.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:10}}>
+          {h5.map(s=><span key={s} style={{display:"inline-flex",alignItems:"center",gap:5,padding:"5px 11px",borderRadius:14,background:C.forestPale,border:"1px solid "+C.forest+"33",fontSize:12,fontFamily:"DM Sans,sans-serif",color:C.forest,fontWeight:500}}>{s}<span onClick={()=>setH5(h5.filter(x=>x!==s))} style={{cursor:"pointer",opacity:0.5,fontSize:14,lineHeight:1}}>{"\u00D7"}</span></span>)}
+        </div>}
+      </IntakeCard>
+      <IntakeCard num="4" accent={C.brown} title="4 Temperaments">
+        <MultiSelect label="Select all that apply" options={TEMPS} values={temps} onChange={setTemps} note="Choose one or more."/>
+      </IntakeCard>
+      <IntakeCard num="5" accent={C.mustard} title="DISC Profile">
+        <MultiSelect label="Select all that apply" options={DISCS} values={discs} onChange={setDiscs} note="Choose one or more."/>
+      </IntakeCard>
+      <button onClick={()=>{setProfile(generateProfile({firstName:fn,lastName:ln,personality:pers,high5:h5,temperaments:temps,disc:discs}));setPage("report");window.scrollTo(0,0);}} disabled={!ok} style={{width:"100%",padding:"15px 24px",borderRadius:8,border:"none",background:ok?C.forest:C.creamDark,color:ok?C.white:C.textMuted,fontSize:14,fontWeight:700,fontFamily:"DM Sans,sans-serif",textTransform:"uppercase",letterSpacing:"0.04em",cursor:ok?"pointer":"not-allowed",transition:"all 0.25s",boxShadow:ok?"0 3px 14px "+C.forest+"33":"none"}}>Generate My Career Profile</button>
+      {!ok&&<p style={{textAlign:"center",marginTop:8,fontSize:11,color:C.textMuted,fontFamily:"DM Sans,sans-serif"}}>Complete all sections to generate your profile.</p>}
+    </div>
+  </div>;
+}
+
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
